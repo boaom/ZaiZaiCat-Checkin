@@ -157,13 +157,14 @@ class SmzdmTaskManager:
 
         logger.info(f"    📋 {task_name}: {status_text} ({task_finished}/{task_total}) 🎁 {reward_text}")
 
-    def process_zhongce_tasks(self, api: SmzdmAPI, account_name: str) -> Dict[str, int]:
+    def process_zhongce_tasks(self, api: SmzdmAPI, account_name: str, max_apply: int = 3) -> Dict[str, int]:
         """
         处理众测任务模块
 
         Args:
             api: SmzdmAPI实例
             account_name: 账号名称
+            max_apply: 活动任务不可用时直接申请众测的数量上限，0 表示只查询不申请
 
         Returns:
             执行统计字典 {success: 成功数, fail: 失败数, skip: 跳过数}
@@ -184,8 +185,9 @@ class SmzdmTaskManager:
             # 获取活动ID
             activity_id = api.get_activity_id()
             if not activity_id:
-                logger.error(f"❌ 获取众测活动ID失败")
-                return {'success': 0, 'fail': 0, 'skip': 0}
+                # 众测活动接口被腾讯验证码拦截时，退回到「直接申请众测商品」
+                logger.warning("⚠️  众测活动任务不可用（多为腾讯验证码拦截），降级为直接申请众测商品")
+                return self.apply_available_probations(api, account_name, max_apply)
 
             # 获取任务列表
             tasks = api.get_task_list(activity_id)
@@ -238,6 +240,75 @@ class SmzdmTaskManager:
             # 领取任务奖励
             logger.info(f"💰 检查并领取众测任务奖励...")
             self.claim_task_rewards(api, activity_id)
+
+            return {'success': success_count, 'fail': fail_count, 'skip': skip_count}
+
+        except Exception as e:
+            logger.error(f"❌ 处理众测任务时发生错误: {str(e)}", exc_info=True)
+            return {'success': 0, 'fail': 0, 'skip': 0}
+
+    def apply_available_probations(self, api: SmzdmAPI, account_name: str, max_apply: int = 3) -> Dict[str, int]:
+        """
+        众测活动任务接口不可用时的降级方案：直接申请进行中的众测商品
+
+        Args:
+            api: SmzdmAPI实例
+            account_name: 账号名称
+            max_apply: 单次最多申请数量，0 表示只查询不申请
+
+        Returns:
+            执行统计字典 {success: 成功数, fail: 失败数, skip: 跳过数}
+        """
+        logger.info(f"\n{'='*60}")
+        logger.info("🎯 开始处理众测任务模块（直接申请众测）")
+        logger.info(f"{'='*60}")
+
+        try:
+            probations = api.get_probation_list()
+            if not probations:
+                logger.warning("⚠️  没有获取到进行中的众测商品")
+                return {'success': 0, 'fail': 0, 'skip': 0}
+
+            available = [
+                item for item in probations
+                if (item.get('article_probation') or {}).get('product_status') == '1'
+            ]
+            logger.info(f"📊 进行中众测 {len(probations)} 个，其中可申请 {len(available)} 个")
+
+            if max_apply <= 0:
+                logger.info("⏭️  配置 zhongce_max_apply=0，只查询不申请")
+                for item in available:
+                    logger.info(f"    - {item.get('article_title', '未知商品')}")
+                return {'success': 0, 'fail': 0, 'skip': len(available)}
+
+            success_count = 0
+            fail_count = 0
+            skip_count = 0
+            for item in available:
+                if success_count >= max_apply:
+                    skip_count += 1
+                    continue
+
+                article_id = item.get('article_id', '')
+                article_probation = item.get('article_probation') or {}
+                logger.info(
+                    f"  🎯 申请众测: {item.get('article_title', '未知商品')} "
+                    f"(id={article_id}, {article_probation.get('apply_num', '')})"
+                )
+
+                status = api.apply_probation(article_id)
+                if status == 'success':
+                    success_count += 1
+                elif status == 'duplicated':
+                    skip_count += 1
+                else:
+                    fail_count += 1
+
+                time.sleep(1)
+            logger.info(f"📊 众测申请统计:")
+            logger.info(f"    ✅ 成功: {success_count} 个")
+            logger.info(f"    ⚠️  失败: {fail_count} 个")
+            logger.info(f"    ⏭️  跳过: {skip_count} 个")
 
             return {'success': success_count, 'fail': fail_count, 'skip': skip_count}
 
@@ -374,9 +445,9 @@ class SmzdmTaskManager:
                         fail_count += 1
 
                     elif task_event_type in ["publish.baoliao_new", "publish.biji_new", "publish.yuanchuang_new", "publish.zhuanzai"]:
-                        # 发布类任务（爆料、笔记、原创、推荐）
-                        logger.warning(f"    ⚠️  任务 [{task_name}] 类型为发布内容，暂不支持自动执行")
-                        fail_count += 1
+                        # 发布类任务（爆料、笔记、原创、推荐）需要真实内容，计为跳过而不是失败
+                        logger.warning(f"    ⏭️  任务 [{task_name}] 类型为发布内容，暂不支持自动执行")
+                        skip_count += 1
 
                     else:
                         logger.warning(f"    ⚠️  未知任务类型: {task_event_type}")
@@ -688,7 +759,8 @@ class SmzdmTaskManager:
             # 1. 处理众测任务
             zhongce_stats = {'success': 0, 'fail': 0, 'skip': 0}
             if 'zhongce' in modules:
-                zhongce_stats = self.process_zhongce_tasks(api, account_name)
+                max_apply = int(account.get('zhongce_max_apply', 3))
+                zhongce_stats = self.process_zhongce_tasks(api, account_name, max_apply)
                 result['zhongce'] = zhongce_stats
 
                 # 等待一下再处理下一个模块

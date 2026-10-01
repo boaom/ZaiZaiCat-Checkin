@@ -54,7 +54,45 @@ class SmzdmAPI:
         self.session = requests.Session()
         self._setup_headers()
         self.setting = setting
-        logger.debug("API客户端初始化完成")
+        # App 接口的 sign 校验要求请求里的 f 与登录 Cookie 记录的平台一致，
+        # 否则一律返回 check Sign Fail（详见 _resolve_client 注释）
+        self.f, self.v = self._resolve_client(cookie, user_agent)
+        logger.debug(f"API客户端初始化完成 (f={self.f}, v={self.v})")
+
+    @staticmethod
+    def _resolve_client(cookie: str, user_agent: str):
+        """
+        解析客户端标识：f = 平台（iphone / android），v = 客户端版本号
+
+        什么值得买的 App 接口会校验请求参数里的 f 是否与登录 Cookie 记录的平台一致，
+        不一致时无论 sign 算得多对，服务端都直接返回 check Sign Fail。
+        因此这里从 Cookie 里取 f / v（抓包时客户端自己写进去的），UA 作为兜底。
+
+        Returns:
+            (f, v) 元组
+        """
+        jar = {}
+        for item in (cookie or "").split(";"):
+            if "=" in item:
+                key, value = item.split("=", 1)
+                jar[key.strip()] = value.strip()
+
+        platform = jar.get("f") or jar.get("device_smzdm") or ""
+        version = jar.get("v") or ""
+
+        if not platform:
+            match = re.search(r"smzdm_android_V([\d.]+)", user_agent or "")
+            if match:
+                platform = "android"
+                version = version or match.group(1)
+            elif "iphone" in (user_agent or "").lower():
+                platform = "iphone"
+                match = re.search(r"smzdm\s+([\d.]+)", user_agent or "")
+                if match:
+                    version = version or match.group(1)
+
+        # 兜底沿用历史默认值，保证老配置（iPhone 抓包）行为不变
+        return platform or "iphone", version or "11.1.35"
 
     def _setup_headers(self):
         """设置默认请求头"""
@@ -80,6 +118,14 @@ class SmzdmAPI:
         logger.warning("未能从Cookie中提取token")
         return ""
 
+    @staticmethod
+    def is_captcha_page(text: str) -> bool:
+        """判断响应体是否为风控下发的腾讯验证码页"""
+        if not text:
+            return False
+        head = text[:2000]
+        return "TCaptcha" in head or "seqid" in head
+
     def _make_request(
         self,
         method: str,
@@ -100,6 +146,12 @@ class SmzdmAPI:
         try:
             response = self.session.request(method, url, timeout=30, **kwargs)
             response.raise_for_status()
+
+            # 众测活动等接口会被风控下发腾讯验证码页（非 JSON），这里给出明确提示
+            if self.is_captcha_page(response.text):
+                logger.error(f"❌ 接口被腾讯验证码拦截，无法自动通过: {url}")
+                return None
+
             data = response.json()
 
             # 检查业务错误码
@@ -190,14 +242,14 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         params = {
             "basic_v": "0",
-            "f": "iphone",
+            "f": self.f,
             "get_total": "1",
             "limit": "100",
             "offset": "0",
             "point_type": "0",
             "source_from": "任务活动",
             "time": str(current_time),
-            "v": "11.1.35",
+            "v": self.v,
             "weixin": "1",
             "zhuanzai_ab": "b"
         }
@@ -330,11 +382,11 @@ class SmzdmAPI:
             'article_id': str(article_id),
             'basic_v': '0',
             'channel_id': str(channel_id),
-            'f': 'iphone',
+            'f': self.f,
             'task_event_type': task_event_type,
             'task_id': task_id,
             'time': str(current_time),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -436,12 +488,12 @@ class SmzdmAPI:
         params = {
             'basic_v': '0',
             'channel_id': str(channel_id),
-            'f': 'iphone',
+            'f': self.f,
             'id': article_id,
             'time': str(current_time),
             'token': token,
             # 'touchstone_event': str(touchstone_event).replace("'", '"'),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -520,12 +572,12 @@ class SmzdmAPI:
         params = {
             'basic_v': '0',
             'channel_id': str(channel_id),
-            'f': 'iphone',
+            'f': self.f,
             'id': article_id,
             'time': str(current_time),
             'token': token,
             # 'touchstone_event': str(touchstone_event).replace("'", '"'),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -601,10 +653,10 @@ class SmzdmAPI:
             'article_id': article_id,
             'basic_v': '0',
             'channel_id': channel_id,
-            'f': 'iphone',
+            'f': self.f,
             'time': str(current_time),
             'token': token,
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -721,36 +773,18 @@ class SmzdmAPI:
         Returns:
             是否成功
         """
-        url = f"{self.BASE_URL}/task/task/ajax_activity_task_receive"
-
-        # 构建请求参数
-        params = {
-            'task_id': task_id
-        }
-
         logger.info(f"正在领取任务奖励 (task_id={task_id})...")
 
-        try:
-            # 使用POST请求,表单编码
-            headers = self.session.headers.copy()
-            headers.update({
-                'Content-Type': 'application/x-www-form-urlencoded'
-            })
+        # H5 的 /task/task/ajax_activity_task_receive 会被风控下发腾讯验证码，
+        # 改走 App 端通道：先取 robot_token，再带 token 调 /task/activity_task_receive
+        robot_data = self.get_robot_token() or {}
+        robot_token = robot_data.get('token') or robot_data.get('robot_token') or ''
 
-            response = self.session.post(url, data=params, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-
-            if data.get('error_code') == 0 or data.get('error_code') == '0':
-                reward_info = data.get('data', {})
-                logger.info(f"✅ 任务奖励领取成功! 奖励: {reward_info}")
-                return True
-            else:
-                logger.error(f"❌ 领取任务奖励失败: {data.get('error_msg', '未知错误')}")
-                return False
-        except Exception as e:
-            logger.error(f"❌ 领取任务奖励请求失败: {str(e)}")
+        if not robot_token:
+            logger.error("❌ 获取 robot_token 失败，无法领取任务奖励")
             return False
+
+        return self.activity_task_receive(task_id, robot_token)
 
     def receive_activity_reward(self, activity_id: str) -> bool:
         """
@@ -769,9 +803,9 @@ class SmzdmAPI:
         params = {
             'activity_id': activity_id,
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'time': str(current_time),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -903,11 +937,11 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         params = {
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'offset': str(offset),
             'status': status,
             'time': str(current_time),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -952,7 +986,19 @@ class SmzdmAPI:
             probation_id: 众测商品ID（对应众测列表中的article_id）
 
         Returns:
-            是否成功
+            是否成功（已申请过视为 False）
+        """
+        return self.apply_probation(probation_id) == "success"
+
+    def apply_probation(self, probation_id: str) -> str:
+        """
+        提交众测申请
+
+        Args:
+            probation_id: 众测商品ID（对应众测列表中的article_id）
+
+        Returns:
+            success 申请成功 / duplicated 已经申请过 / failed 申请失败
         """
         url = f"{self.TEST_API_URL}/probation/submit"
 
@@ -961,11 +1007,11 @@ class SmzdmAPI:
         params = {
             'attention_merchant': '0',
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'probation_id': probation_id,
             'remark_list': '["",""]',
             'time': str(current_time),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -993,21 +1039,18 @@ class SmzdmAPI:
 
             if data.get('error_code') == '0' or data.get('error_code') == 0:
                 logger.info(f"✅ 众测申请提交成功")
-                return True
-            elif data.get('error_code') == '1':
-                error_msg = data.get('error_msg', '')
-                if '已经申请过' in error_msg:
-                    logger.info(f"该众测商品已经申请过，跳过")
-                    return False
-                else:
-                    logger.error(f"众测申请失败: {error_msg}")
-                    return False
-            else:
-                logger.error(f"众测申请失败: {data.get('error_msg', '未知错误')}")
-                return False
+                return 'success'
+
+            error_msg = data.get('error_msg', '未知错误')
+            if '已经申请过' in error_msg:
+                logger.info(f"该众测商品已经申请过，跳过")
+                return 'duplicated'
+
+            logger.error(f"众测申请失败: {error_msg}")
+            return 'failed'
         except Exception as e:
             logger.error(f"❌ 众测申请请求失败: {str(e)}")
-            return False
+            return 'failed'
 
     def apply_zhongce_task(self, task: Dict[str, Any]) -> bool:
         """
@@ -1113,14 +1156,14 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         params = {
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'get_total': '1',
             'limit': str(limit),
             'offset': str(offset),
             'point_type': str(point_type),
             'source_from': source_from,
             'time': str(current_time),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -1178,12 +1221,12 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         params = {
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'nav_id': '83',
             'page': str(page),
             'time': str(current_time),
             'type': 'user',
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -1239,7 +1282,7 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         params = {
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'is_follow_activity_page': '1',
             'is_from_task': '1',
             'keyword': keyword,
@@ -1248,7 +1291,7 @@ class SmzdmAPI:
             'time': str(current_time),
             'token': token,
             'type': 'user',
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -1304,14 +1347,14 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         params = {
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'keyword': keyword,
             'keyword_id': keyword_id,
             'refer': 'iPhone/公共/我的兴趣管理/感兴趣/全部',
             'time': str(current_time),
             'token': token,
             'type': 'user',
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -1448,12 +1491,12 @@ class SmzdmAPI:
         # 构建请求参数
         params = {
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'pdd_token': '1086704855cd376d73bd5507c1926cf2',  # 从curl命令中提取的固定token
             'setting': self.setting,
             'time': str(current_time),
             'url': url,  # 用户传入的URL参数
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -1738,11 +1781,11 @@ class SmzdmAPI:
 
             params = {
                 'basic_v': '0',
-                'f': 'iphone',
+                'f': self.f,
                 'pic_data': pic_data,
                 'pic_index': str(pic_index),
                 'time': str(int(time.time() * 1000)),
-                'v': '11.1.35',
+                'v': self.v,
                 'weixin': '1',
                 'zhuanzai_ab': 'b'
             }
@@ -1810,12 +1853,12 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         data = {
           "basic_v": "0",
-          "f": "iphone",
+          "f": self.f,
           "robot_token": token,
           "sign": "",
           "task_id": activity_id,
           "time": str(current_time),
-          "v": "11.1.35",
+          "v": self.v,
           "weixin": "1",
           "zhuanzai_ab": "b"
         }
@@ -1834,7 +1877,7 @@ class SmzdmAPI:
             'Accept-Language': 'zh-Hans-CN;q=1'
         })
 
-        logger.info(f"正在领取爆料阶段性奖励 (activity_id={activity_id})...")
+        logger.info(f"正在领取任务奖励 (task_id={activity_id})...")
 
         try:
             response = self.session.post(url, data=data, headers=headers)
@@ -1843,13 +1886,13 @@ class SmzdmAPI:
 
             if data.get('error_code') == '0' or data.get('error_code') == 0:
                 reward_info = data.get('data', {})
-                logger.info(f"✅ 爆料阶段性奖励领取成功! 奖励: {reward_info}")
+                logger.info(f"✅ 任务奖励领取成功! 奖励: {reward_info}")
                 return True
             else:
-                logger.error(f"❌ 领取爆料阶段性奖励失败: {data.get('error_msg', '未知错误')}")
+                logger.error(f"❌ 领取任务奖励失败: {data.get('error_msg', '未知错误')}")
                 return False
         except Exception as e:
-            logger.error(f"❌ 领取爆料阶段性奖励请求失败: {str(e)}")
+            logger.error(f"❌ 领取任务奖励请求失败: {str(e)}")
             return False
 
     def get_user_article(self):
@@ -1865,11 +1908,11 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         params = {
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'limit': '30',
             'offset': '0',
             'time': str(current_time),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -1918,10 +1961,10 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         params = {
             'basic_v': '0',
-            'f': 'iphone',
+            'f': self.f,
             'sign': '',
             'time': str(current_time),
-            'v': '11.1.35',
+            'v': self.v,
             'weixin': '1',
             'zhuanzai_ab': 'b'
         }
@@ -1946,7 +1989,6 @@ class SmzdmAPI:
             response = self.session.post(url, data=params, headers=headers)
             response.raise_for_status()
             data = response.json()
-            print(data)
             if data.get('error_code') == '0' or data.get('error_code') == 0:
                 logger.info(f"✅ 成功获取用户robot生成token")
                 return data.get('data', {})
@@ -1978,10 +2020,10 @@ class SmzdmAPI:
         current_time = int(time.time() * 1000)
         data = {
           "basic_v": "0",
-          "f": "iphone",
+          "f": self.f,
           "sign": "",
           "time": str(current_time),
-          "v": "11.1.35",
+          "v": self.v,
           "weixin": "1",
           "zhuanzai_ab": "b"
         }
@@ -2008,13 +2050,13 @@ class SmzdmAPI:
             print(data)
             if data.get('error_code') == '0' or data.get('error_code') == 0:
                 reward_info = data.get('data', {})
-                logger.info(f"✅ 爆料阶段性奖励领取成功! 奖励: {reward_info}")
+                logger.info(f"✅ 任务奖励领取成功! 奖励: {reward_info}")
                 return True
             else:
-                logger.error(f"❌ 领取爆料阶段性奖励失败: {data.get('error_msg', '未知错误')}")
+                logger.error(f"❌ 领取任务奖励失败: {data.get('error_msg', '未知错误')}")
                 return False
         except Exception as e:
-            logger.error(f"❌ 领取爆料阶段性奖励请求失败: {str(e)}")
+            logger.error(f"❌ 领取任务奖励请求失败: {str(e)}")
             return False
 
 

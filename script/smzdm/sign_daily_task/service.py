@@ -36,27 +36,34 @@ class SmzdmService:
             任务列表
         """
         all_tasks = []
+        seen_task_ids = set()
 
-        row = task_data.get('rows', [])[0]
-        if not row:
+        rows = task_data.get('rows') or []
+        if not rows:
             logger.warning("互动任务数据中没有找到任务行")
             return all_tasks
 
-        cell_data = row.get('cell_data', {})
-        activity_task = cell_data.get('activity_task', {})
+        # 任务中心会按分组下发多份任务列表（每日任务 / 爆料任务 ...），需要全部收集，
+        # 只取第一组会漏掉后面的任务
+        for row in rows:
+            cell_data = row.get('cell_data', {})
+            activity_task = cell_data.get('activity_task', {})
 
-        # 获取累计任务列表
-        default_list_v2 = activity_task.get('default_list_v2', [])
+            for group in activity_task.get('default_list_v2', []):
+                for task in group.get('task_list', []):
+                    task_id = task.get('task_id')
+                    if task_id and task_id in seen_task_ids:
+                        continue
+                    if task_id:
+                        seen_task_ids.add(task_id)
+                    all_tasks.append(task)
 
-        # 遍历每个模块的任务列表
-        if default_list_v2:
-            module = default_list_v2[0]
-            task_list = module.get('task_list', [])
-            logger.info(f"发现{len(task_list)} 个每日任务")
-            return task_list
-        else:
+        if not all_tasks:
             logger.warning("互动任务数据中没有找到任务列表")
-            return []
+        else:
+            logger.info(f"发现 {len(all_tasks)} 个互动任务")
+
+        return all_tasks
 
     def print_energy_info(self, user_data: Dict[str, Any]):
         """

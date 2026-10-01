@@ -34,7 +34,8 @@ pip install requests
         "account_name": "主号",
         "cookie": "抓包得到的完整 Cookie",
         "user_agent": "smzdm_android_V11.1.95 rv:1195 (23013RK75C;Android13;zh)smzdmapp",
-        "modules": ["checkin"]
+        "modules": ["checkin", "zhongce", "interactive"],
+        "zhongce_max_apply": 3
       }
     ]
   }
@@ -47,12 +48,19 @@ pip install requests
 | `cookie` | 是 | 抓包得到的完整 Cookie 串（App 或网页版均可） |
 | `user_agent` | 否 | 不填会用内置的 App UA |
 | `modules` | 否 | 要跑的模块，可选 `checkin` / `zhongce` / `interactive`，默认全跑 |
+| `zhongce_max_apply` | 否 | 众测降级申请时单次最多提交几个，默认 `3`；填 `0` 表示只列出可申请商品不提交 |
 
 ### 模块说明
 
 - `checkin`：每日签到，走 Web 端接口 `zhiyou.smzdm.com/user/checkin/jsonp_checkin`，**只需要 Cookie**
 - `zhongce`：众测任务，走 App 端接口，需要请求签名
-- `interactive`：互动任务（浏览/收藏/点赞/关注），需要请求签名
+
+> 众测的「任务活动」接口（`zhiyou.m.smzdm.com/task/task/*`）会被风控下发腾讯验证码，
+> 无法在无头环境下通过。脚本检测到验证码后会降级为**直接申请进行中的众测商品**，
+> 申请数量由 `zhongce_max_apply` 控制（默认 3，`0` 表示只查询不申请）。
+- `interactive`：互动任务（浏览文章 / 关注用户），走 App 端接口，需要请求签名
+
+互动任务里「发布类」任务（发爆料 / 笔记 / 原创）需要真实内容，脚本会跳过并计入「跳过」而不是失败。
 
 ### 关于每日签到的接口选择
 
@@ -70,6 +78,13 @@ sign = MD5( 参数按 key 字母序拼接成 k=v&k=v... + "&key=" + SECRET_KEY )
 
 `SECRET_KEY` 定义在 `api/sign_calculator.py`，必须与客户端一致，否则所有 App 端接口都会返回
 `check Sign Fail`。空值参数（如 `captcha=`）不参与签名。
+
+另外还有一个容易踩的坑：请求参数里的 **`f`（平台）必须与登录 Cookie 里记录的平台一致**。
+服务端会拿 Cookie 里的 `f` / `device_smzdm` 去核对请求参数，不一致时即使 sign 算得完全正确，
+也一样返回 `check Sign Fail`。脚本会自动从 Cookie（兜底用 UA）解析 `f` / `v`，不用手工配。
+
+> 也就是说：**iPhone 抓的 Cookie 配 iPhone UA，Android 抓的 Cookie 配 Android UA**，
+> 混用会直接导致所有 App 端接口签名失败。
 
 ### Cookie 获取方法
 

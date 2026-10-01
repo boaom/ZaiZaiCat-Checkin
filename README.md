@@ -27,7 +27,7 @@
 | 🎯 华润通-文体未来荟 | `script/huaruntong/wentiweilaihui/main.py` | ✅ 可用 | 支持签到和积分查询           |
 | 👟 鸿星尔克      | `script/erke/main.py` | ✅ 可用 | 支持签到和积分明细查询         |
 | 📝 WPS Office  | `script/wps/main.py` | ✅ 可用 | 任务中心签到+积分，天天领福利打卡+会员试用+抽奖（App 抓包 Cookie 可直接用） |
-| 💰 什么值得买      | `script/smzdm/sign_daily_task/main.py` | ✅ 可用 | 支持每日签到（Web 接口，仅需 Cookie）；众测/互动模块受 JS 反爬限制 |
+| 💰 什么值得买      | `script/smzdm/sign_daily_task/main.py` | ✅ 可用 | 支持每日签到、互动任务（浏览/关注）与众测申请；众测「任务活动」接口受腾讯验证码限制，已降级为直接申请众测商品 |
 | 🤖 WorkBuddy    | `script/workbuddy/main.py` | ✅ 可用 | 支持每日签到、令牌自动续期与多账号管理 |
 | 🐅 Trae CN       | `script/trae/main.py` | ✅ 可用 | 支持积分计费模式每日签到与多账号管理 |
 | 🚀 Agent Router  | `script/agentrouter/main.py` | ✅ 可用 | 支持 OAuth 登录即签到、余额查询 |

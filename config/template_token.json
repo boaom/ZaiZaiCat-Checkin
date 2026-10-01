@@ -137,8 +137,11 @@
         "cookie": "COOKIE_MASKED",
         "user_agent": "smzdm_android_V11.1.95 rv:1195 (Android13;zh)smzdmapp",
         "modules": [
-          "checkin"
-        ]
+          "checkin",
+          "zhongce",
+          "interactive"
+        ],
+        "zhongce_max_apply": 3
       }
     ]
   },
