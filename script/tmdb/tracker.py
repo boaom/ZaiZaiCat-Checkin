@@ -63,6 +63,8 @@ def evaluate(shows: List[Show], details: Dict[int, Show], tracked: Tracked,
             'tracked': 新进度（不改动传入的 tracked）,
             'updates': [(show, episode), ...] 本次要通知的更新,
             'initialized': 本次新纳入追踪的剧集数,
+            'initialized_shows': [(show, episode), ...] 本次新纳入的剧集，
+                                 首次执行时用来给每部剧发一张卡片,
         }
     """
     today = today or date.today().isoformat()
@@ -70,7 +72,7 @@ def evaluate(shows: List[Show], details: Dict[int, Show], tracked: Tracked,
 
     new_tracked: Tracked = {key: dict(value) for key, value in tracked.items()}
     updates: List[Tuple[Show, Episode]] = []
-    initialized = 0
+    initialized_shows: List[Tuple[Show, Episode]] = []
 
     for show in shows:
         series_id = str(show.get('id') or '')
@@ -96,7 +98,7 @@ def evaluate(shows: List[Show], details: Dict[int, Show], tracked: Tracked,
                 'name': merged['name'],
                 'tracked_since': now,
             }
-            initialized += 1
+            initialized_shows.append((merged, episode))
             continue
 
         if (known.get('season'), known.get('episode')) == (current['season'], current['episode']):
@@ -116,5 +118,6 @@ def evaluate(shows: List[Show], details: Dict[int, Show], tracked: Tracked,
     return {
         'tracked': new_tracked,
         'updates': updates,
-        'initialized': initialized,
+        'initialized': len(initialized_shows),
+        'initialized_shows': initialized_shows,
     }

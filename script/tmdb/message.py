@@ -33,6 +33,28 @@ def format_update_message(show: Dict[str, Any], episode: Dict[str, Any]) -> str:
     ])
 
 
+def format_init_message(show: Dict[str, Any], episode: Dict[str, Any]) -> str:
+    """
+    首次执行时给每部剧发的「已纳入追踪」卡片
+
+    和更新卡片刻意用不同的抬头和标签，避免误以为是新集。
+    """
+    season = episode.get('season_number')
+    number = episode.get('episode_number')
+    title = f"第 {season} 季 第 {number} 集"
+    episode_name = (episode.get('name') or '').strip()
+    if episode_name:
+        title += f"：{episode_name}"
+
+    return '\n'.join([
+        '📺 追剧追踪',
+        f"《{show.get('name') or '未知剧集'}》已纳入追踪",
+        title,
+        f"播出日期：{episode.get('air_date') or '未知'}",
+        '#追剧追踪',
+    ])
+
+
 def format_startup_message(tracked_count: int) -> str:
     """首次运行时告诉用户追踪已启动"""
     return (

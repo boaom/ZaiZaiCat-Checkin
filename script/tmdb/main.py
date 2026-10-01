@@ -11,8 +11,9 @@ cron: 0 20 * * *
 每次跑发现某部剧集数往前推进了就把更新卡片推到 Telegram 群。
 
 判定规则：
-    只追踪**加入列表之后**发生的更新。第一次见到某部剧时只记录进度、不通知，
-    避免刚把剧加进列表就收到一堆「更新啦」。
+    首次执行（进度文件为空）时给每部剧各推一张「已纳入追踪」卡片，并把当前进度落盘。
+    之后每次跑只推**进度往前推进了**的剧，一部剧一张卡片；
+    新加进列表的剧只记录不通知，避免刚加剧就收到「更新啦」。
 
     进度用 (季, 集) 作为标识存在 config/tmdb/state.json，
     所以脚本漏跑几天也没关系，下次跑会把期间新出的集数一次性补报。
@@ -57,7 +58,8 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from api import TMDBClient, TMDBError
-from message import format_empty_message, format_startup_message, format_update_message
+from message import (format_empty_message, format_init_message, format_startup_message,
+                     format_update_message)
 from notify import build_notifier
 from state import StateStore
 from tracker import evaluate
@@ -78,6 +80,8 @@ DEFAULT_OPTIONS = {
     'max_workers': 5,           # 并发拉取剧集详情的线程数
     'notify_when_empty': False,  # 无更新时是否也推一条
     'upcoming_days': 0,         # >0 时在卡片末尾附带 N 天内的待播预告
+    'notify_interval': 1.5,      # 日常推送之间的间隔（秒）
+    'init_notify_interval': 3.5,  # 首次执行批量推送时的间隔（秒），避开群限流
 }
 
 
@@ -193,7 +197,8 @@ class EpisodeTracker:
         检查所有剧集，返回本次发现的更新
 
         Returns:
-            {'shows': 总数, 'updates': [(show, episode)], 'initialized': int, 'failed': int}
+            {'shows': 总数, 'updates': [(show, episode)], 'initialized': int,
+             'initialized_shows': [(show, episode)], 'failed': int}
         """
         shows = self.fetch_shows()
         details, failed = self.collect_details(shows)
@@ -205,6 +210,7 @@ class EpisodeTracker:
             'shows': len(shows),
             'updates': result['updates'],
             'initialized': result['initialized'],
+            'initialized_shows': result['initialized_shows'],
             'failed': failed,
         }
 
@@ -235,14 +241,23 @@ class EpisodeTracker:
 
     # ---------------- 主流程 ----------------
 
-    def build_messages(self, updates: List[Tuple[Dict[str, Any], Dict[str, Any]]],
-                       first_run: bool) -> List[str]:
-        """按本次判定结果拼出要推送的文案"""
-        messages = [format_update_message(show, episode) for show, episode in updates]
+    def build_messages(self, result: Dict[str, Any], first_run: bool) -> List[str]:
+        """
+        按本次判定结果拼出要推送的文案
 
+        首次执行（进度文件为空）时给每部剧各发一张「已纳入追踪」卡片，
+        之后只发本次有更新的剧。
+        """
         if first_run:
-            messages.append(format_startup_message(len(self.state['shows'])))
-        elif not messages and self.options.get('notify_when_empty'):
+            cards = [format_init_message(show, episode)
+                     for show, episode in result['initialized_shows']]
+            if cards:
+                return cards
+            # 在看列表为空这种退化情况，保留一条汇总
+            return [format_startup_message(len(self.state['shows']))]
+
+        messages = [format_update_message(show, episode) for show, episode in result['updates']]
+        if not messages and self.options.get('notify_when_empty'):
             messages.append(format_empty_message())
         return messages
 
@@ -261,7 +276,7 @@ class EpisodeTracker:
             f"详情失败 {result['failed']} 部"
         )
 
-        messages = self.build_messages(result['updates'], first_run)
+        messages = self.build_messages(result, first_run)
 
         for message in messages:
             print(f"\n{'-' * 40}\n{message}")
@@ -278,10 +293,14 @@ class EpisodeTracker:
             return 0
 
         sent = 0
-        for message in messages:
+        interval = float(self.options['init_notify_interval'] if first_run
+                         else self.options['notify_interval'])
+        for index, message in enumerate(messages):
             if self.notifier.send(message):
                 sent += 1
-            time.sleep(1.5)  # 避免群消息刷屏触发 Telegram 限流
+            if index < len(messages) - 1:
+                # 避免群消息刷屏触发 Telegram 限流；首次执行会连发几十条，间隔更宽
+                time.sleep(interval)
 
         logger.info(f"推送完成 {sent}/{len(messages)}")
         return 0 if sent == len(messages) else 1

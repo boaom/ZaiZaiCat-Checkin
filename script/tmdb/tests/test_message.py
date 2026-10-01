@@ -8,7 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from message import format_empty_message, format_startup_message, format_update_message  # noqa: E402
+from message import (format_empty_message, format_init_message, format_startup_message,
+                     format_update_message)  # noqa: E402
 
 
 class FormatUpdateMessageTest(unittest.TestCase):
@@ -42,6 +43,32 @@ class FormatUpdateMessageTest(unittest.TestCase):
 
 
 class OtherMessagesTest(unittest.TestCase):
+
+    def test_init_card(self):
+        show = {'name': '翠鸟谋杀案'}
+        episode = {'season_number': 1, 'episode_number': 3,
+                   'name': '花园里的低语', 'air_date': '2026-09-20'}
+        self.assertEqual(
+            format_init_message(show, episode),
+            '📺 追剧追踪\n'
+            '《翠鸟谋杀案》已纳入追踪\n'
+            '第 1 季 第 3 集：花园里的低语\n'
+            '播出日期：2026-09-20\n'
+            '#追剧追踪',
+        )
+
+    def test_init_card_differs_from_update_card(self):
+        show = {'name': '某剧'}
+        episode = {'season_number': 1, 'episode_number': 1, 'air_date': '2026-09-20'}
+        self.assertNotEqual(format_init_message(show, episode),
+                            format_update_message(show, episode))
+        self.assertIn('已纳入追踪', format_init_message(show, episode))
+        self.assertIn('更新啦', format_update_message(show, episode))
+
+    def test_init_card_placeholders(self):
+        message = format_init_message({}, {})
+        self.assertIn('《未知剧集》已纳入追踪', message)
+        self.assertIn('播出日期：未知', message)
 
     def test_startup_message(self):
         self.assertEqual(

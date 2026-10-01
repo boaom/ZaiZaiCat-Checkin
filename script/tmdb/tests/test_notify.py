@@ -72,6 +72,42 @@ class DirectTelegramTest(unittest.TestCase):
         with mock.patch('requests.post', side_effect=OSError('boom')):
             self.assertFalse(self.notifier.send(TEXT))
 
+    def test_rate_limited_then_succeeds(self):
+        limited = mock.Mock()
+        limited.json.return_value = {'ok': False, 'error_code': 429,
+                                     'parameters': {'retry_after': 3}}
+        ok = mock.Mock()
+        ok.json.return_value = {'ok': True}
+
+        with mock.patch('requests.post', side_effect=[limited, ok]) as post, \
+                mock.patch('time.sleep') as sleep:
+            self.assertTrue(self.notifier.send(TEXT))
+
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once_with(4.0)
+
+    def test_rate_limit_gives_up_after_max_retries(self):
+        limited = mock.Mock()
+        limited.json.return_value = {'ok': False, 'error_code': 429,
+                                     'parameters': {'retry_after': 1}}
+
+        with mock.patch('requests.post', return_value=limited) as post, \
+                mock.patch('time.sleep'):
+            self.assertFalse(self.notifier.send(TEXT))
+
+        self.assertEqual(post.call_count, 6)  # 首次 + 5 次重试
+
+    def test_rate_limit_without_retry_after_fails_fast(self):
+        limited = mock.Mock()
+        limited.json.return_value = {'ok': False, 'error_code': 429}
+
+        with mock.patch('requests.post', return_value=limited) as post, \
+                mock.patch('time.sleep') as sleep:
+            self.assertFalse(self.notifier.send(TEXT))
+
+        self.assertEqual(post.call_count, 1)
+        sleep.assert_not_called()
+
 
 class UnifiedFallbackTest(unittest.TestCase):
 

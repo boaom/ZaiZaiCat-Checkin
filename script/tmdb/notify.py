@@ -13,9 +13,13 @@
 """
 
 import logging
+import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# 被 Telegram 限流时最多重试几次
+MAX_RATE_LIMIT_RETRIES = 5
 
 
 class Notifier:
@@ -53,17 +57,28 @@ class Notifier:
         }
         proxies = {'https': self.proxy, 'http': self.proxy} if self.proxy else None
 
-        try:
-            response = requests.post(url, json=payload, timeout=self.timeout, proxies=proxies)
-            data = response.json()
-        except Exception as e:
-            logger.error(f"❌ Telegram 推送异常: {e}")
-            return False
+        for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+            try:
+                response = requests.post(url, json=payload, timeout=self.timeout, proxies=proxies)
+                data = response.json()
+            except Exception as e:
+                logger.error(f"❌ Telegram 推送异常: {e}")
+                return False
 
-        if not data.get('ok'):
+            if data.get('ok'):
+                return True
+
+            # 群机器人有 20 条/分钟左右的限流，按 Telegram 给的 retry_after 等
+            retry_after = (data.get('parameters') or {}).get('retry_after')
+            if data.get('error_code') == 429 and retry_after and attempt < MAX_RATE_LIMIT_RETRIES:
+                wait = float(retry_after) + 1
+                logger.warning(f"⚠️ Telegram 限流，{wait:.0f}s 后重试（第 {attempt + 1} 次）")
+                time.sleep(wait)
+                continue
+
             logger.error(f"❌ Telegram 推送失败: {data.get('description')}")
             return False
-        return True
+        return False
 
     def _send_via_unified(self, text: str) -> bool:
         """回退到项目统一推送层"""

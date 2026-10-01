@@ -77,6 +77,7 @@ class EvaluateTest(unittest.TestCase):
 
         self.assertEqual(result['initialized'], 1)
         self.assertEqual(result['updates'], [])
+        self.assertEqual(len(result['initialized_shows']), 1)
         self.assertEqual(result['tracked']['1'], {
             'season': 1,
             'episode': 3,
@@ -84,6 +85,21 @@ class EvaluateTest(unittest.TestCase):
             'name': '翠鸟谋杀案',
             'tracked_since': NOW,
         })
+
+    def test_initialized_shows_carry_show_and_episode(self):
+        result = run([make_show(7)], {7: make_detail(name='某剧')})
+
+        show, episode = result['initialized_shows'][0]
+        self.assertEqual(show['name'], '某剧')
+        self.assertEqual(episode['episode_number'], 3)
+
+    def test_initialized_shows_empty_when_nothing_new(self):
+        tracked = {'1': {'season': 1, 'episode': 3, 'air_date': '2026-09-20',
+                         'name': '翠鸟谋杀案', 'tracked_since': '2026-09-01T00:00:00'}}
+        result = run([make_show()], {1: make_detail()}, tracked)
+
+        self.assertEqual(result['initialized'], 0)
+        self.assertEqual(result['initialized_shows'], [])
 
     def test_same_episode_is_not_an_update(self):
         tracked = {'1': {'season': 1, 'episode': 3, 'air_date': '2026-09-20',
@@ -166,6 +182,7 @@ class EvaluateTest(unittest.TestCase):
         result = run(shows, details, tracked)
 
         self.assertEqual(result['initialized'], 1)
+        self.assertEqual(len(result['initialized_shows']), 1)
         self.assertEqual(len(result['updates']), 1)
         self.assertEqual(result['updates'][0][0]['name'], 'B')
         self.assertEqual(sorted(result['tracked']), ['1', '2', '3'])
