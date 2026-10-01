@@ -148,22 +148,22 @@
   "erke": {
     "accounts": [
       {
-        "account_name": "",
-        "member_id": "",
-        "enterprise_id": "",
-        "unionid": "",
-        "openid": "",
-        "wx_openid": "",
-        "user_agent": ""
+        "account_name": "账号1",
+        "member_id": "MEMBER_ID_MASKED",
+        "enterprise_id": "ENTERPRISE_ID_MASKED",
+        "unionid": "UNIONID_MASKED",
+        "openid": "OPENID_MASKED",
+        "wx_openid": "WX_OPENID_MASKED",
+        "user_agent": "UA_MASKED"
       },
       {
-        "account_name": "",
-        "member_id": "",
-        "enterprise_id": "",
-        "unionid": "",
-        "openid": "",
-        "wx_openid": "",
-        "user_agent": ""
+        "account_name": "账号2",
+        "member_id": "MEMBER_ID_MASKED",
+        "enterprise_id": "ENTERPRISE_ID_MASKED",
+        "unionid": "UNIONID_MASKED",
+        "openid": "OPENID_MASKED",
+        "wx_openid": "WX_OPENID_MASKED",
+        "user_agent": "UA_MASKED"
       }
     ]
   },
