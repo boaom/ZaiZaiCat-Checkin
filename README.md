@@ -32,6 +32,7 @@
 | 🐅 Trae CN       | `script/trae/main.py` | ✅ 可用 | 支持积分计费模式每日签到与多账号管理 |
 | 🚀 Agent Router  | `script/agentrouter/main.py` | ✅ 可用 | 支持 OAuth 登录即签到、余额查询 |
 | 🏃 RQ 跑步商      | `script/rq/main.py` | ✅ 可用 | 支持每日签到（仅需 PHPSESSID） |
+| 🔓 吾爱破解      | `script/52pojie/main.py` | ✅ 可用 | 支持每日签到，内置网宿 WAF 挑战求解（依赖 curl_cffi） |
 
 ### 状态说明
 

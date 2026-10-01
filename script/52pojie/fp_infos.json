@@ -1,0 +1,158 @@
+{
+  "errors": {},
+  "plugins": {
+    "details": [
+      {
+        "name": "Chrome PDF Plugin",
+        "description": "Portable Document Format",
+        "filename": "internal-pdf-viewer",
+        "mimetypes": []
+      },
+      {
+        "name": "Chrome PDF Viewer",
+        "description": "",
+        "filename": "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+        "mimetypes": []
+      },
+      {
+        "name": "Native Client",
+        "description": "",
+        "filename": "internal-nacl-plugin",
+        "mimetypes": []
+      }
+    ],
+    "names": [
+      "Chrome PDF Plugin",
+      "Chrome PDF Viewer",
+      "Native Client"
+    ],
+    "fp": "880058007d6ee7727e01454bd0840410",
+    "verify": 210
+  },
+  "fonts": {
+    "names": [
+      "Andale Mono",
+      "Arial",
+      "Arial Black",
+      "Arial Hebrew",
+      "Arial Narrow",
+      "Arial Rounded MT Bold",
+      "Arial Unicode MS",
+      "Comic Sans MS",
+      "Courier",
+      "Courier New",
+      "Geneva",
+      "Georgia",
+      "Helvetica",
+      "Helvetica Neue",
+      "Impact",
+      "LUCIDA GRANDE",
+      "Microsoft Sans Serif",
+      "Monaco",
+      "Palatino",
+      "Tahoma",
+      "Times",
+      "Times New Roman",
+      "Trebuchet MS",
+      "Verdana",
+      "Wingdings",
+      "Wingdings 2",
+      "Wingdings 3"
+    ],
+    "fp": "404599e8cfe1486c0acb902cebf3e0f1",
+    "verify": 185
+  },
+  "screenObject": {
+    "screenResolution": [
+      3440,
+      1440
+    ],
+    "availableScreenResolution": [
+      3440,
+      1400
+    ],
+    "colorDepth": 24,
+    "availTop": 30,
+    "availLeft": 0,
+    "isExtended": false,
+    "pixelDepth": 24,
+    "orientation": {
+      "angle": 0,
+      "type": "landscape-primary"
+    },
+    "verify": 540
+  },
+  "intlObject": {
+    "locale": "zh-CN",
+    "calendar": "gregory",
+    "numberingSystem": "latn",
+    "timeZone": "Asia/Shanghai",
+    "year": "numeric",
+    "month": "numeric",
+    "day": "numeric",
+    "timezoneOffset": -480,
+    "verify": -2150
+  },
+  "touchSupport": [
+    0,
+    false,
+    false
+  ],
+  "audio": "124.04346607114712",
+  "webdriver": false,
+  "webGL": {
+    "webgl_version": "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
+    "webgl_vendor_and_renderer": "Google Inc. (AMD)~ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "webgl_unmasked_renderer": "ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "webgl_unmasked_vendor": "Google Inc. (AMD)",
+    "webgl_aliased_point_size_range": [
+      1,
+      511
+    ],
+    "webgl_fragment_shader_medium_int_precision_rangeMax": 30,
+    "webgl_fragment_shader_medium_int_precision_rangeMin": 31,
+    "fp": "9e0924fc01f9d18c4f8ea400b2de8bec",
+    "verify": 1455
+  },
+  "canvas": {
+    "canvas_winding": true,
+    "fp": "7643178faded80be05eada945cf71164",
+    "verify": 185
+  },
+  "deviceInfos": {
+    "deviceMemory": 32,
+    "hardwareConcurrency": 12,
+    "verify": 220
+  },
+  "storageObject": {
+    "localStorage": true,
+    "openDatabase": true,
+    "indexedDb": true,
+    "sessionStorage": true,
+    "addBehavior": false,
+    "verify": 125
+  },
+  "navigatorObject": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) anything-analyzer/3.6.60 Chrome/134.0.6998.205 Electron/35.7.5 Safari/537.36",
+    "platform": "Win32",
+    "vendor": "Google Inc.",
+    "language": "zh-CN",
+    "languages": [
+      "zh-CN",
+      "zh",
+      "en"
+    ],
+    "productSub": "20030107",
+    "verify": 1010
+  },
+  "functions": {
+    "eval_tostring_length": 33,
+    "verify": 165
+  },
+  "dateTime": {
+    "timestamp": 1790839082105,
+    "verify": 8954195410525
+  },
+  "fp": "f5ba44879752431330c366692301a221",
+  "protocol": "https"
+}

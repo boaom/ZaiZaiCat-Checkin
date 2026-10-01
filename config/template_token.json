@@ -267,5 +267,14 @@
       "api_host": "",
       "proxy": ""
     }
+  },
+  "52pojie": {
+    "accounts": [
+      {
+        "account_name": "默认账号",
+        "cookie": "COOKIE_MASKED",
+        "user_agent": "UA_MASKED"
+      }
+    ]
   }
 }
