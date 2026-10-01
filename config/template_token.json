@@ -208,5 +208,15 @@
         "github_session": "GitHub 登录后的 user_session 值"
       }
     ]
+  },
+  "fuliba": {
+    "accounts": [
+      {
+        "account_name": "主号",
+        "cookies": "浏览器完整 Cookie 字符串（需含 S5r8_2132_auth、S5r8_2132_saltkey）",
+        "formhash": "可选，留空则每次运行自动获取",
+        "user_agent": "可选，建议与抓包时的浏览器保持一致"
+      }
+    ]
   }
 }
