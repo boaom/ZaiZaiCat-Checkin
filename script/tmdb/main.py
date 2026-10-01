@@ -7,8 +7,8 @@ cron: 0 20 * * *
 """
 剧集更新追踪脚本
 
-剧源来自 TMDB 账号的「在看列表」（watchlist），每天 20:00 检查一次，
-发现某部剧集数往前推进了就把更新卡片推到 Telegram 群。
+剧源来自 TMDB 账号的「在看列表」（watchlist），由青龙定时触发，
+每次跑发现某部剧集数往前推进了就把更新卡片推到 Telegram 群。
 
 判定规则：
     只追踪**加入列表之后**发生的更新。第一次见到某部剧时只记录进度、不通知，
@@ -408,7 +408,7 @@ class EpisodeTracker:
             messages.append(
                 f"✅ 追剧追踪已启动\n"
                 f"正在追踪 {len(self.state['shows'])} 部剧集\n"
-                f"每天 20:00 检查更新，有新集才推送"
+                f"有新集才推送"
             )
         elif not messages and self.options.get('notify_when_empty'):
             messages.append(f"📺 追剧更新提醒\n今天没有剧集更新～")
