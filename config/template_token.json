@@ -221,5 +221,14 @@
         "user_agent": "可选，建议与抓包时的浏览器保持一致"
       }
     ]
+  },
+  "rq": {
+    "accounts": [
+      {
+        "account_name": "主号",
+        "cookies": "PHPSESSID=MASKED",
+        "user_agent": ""
+      }
+    ]
   }
 }
