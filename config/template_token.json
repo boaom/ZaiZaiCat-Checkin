@@ -230,5 +230,32 @@
         "user_agent": ""
       }
     ]
+  },
+  "dingdong": {
+    "accounts": [
+      {
+        "account_name": "主号",
+        "cookies": "DDXQSESSID=MASKED",
+        "uid": "",
+        "station_id": "",
+        "city_name": "上海市",
+        "city_number": "0101",
+        "latitude": 0,
+        "longitude": 0,
+        "device_id": "",
+        "device_token": "",
+        "os_version": "13",
+        "native_version": "",
+        "user_agent": ""
+      }
+    ],
+    "options": {
+      "sign_in": true,
+      "farm_reward": true,
+      "farm_feed": true,
+      "farm_achieve": true,
+      "mission": true,
+      "lucky_draw": false
+    }
   }
 }
