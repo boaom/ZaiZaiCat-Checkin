@@ -141,10 +141,12 @@
   "smzdm": {
     "accounts": [
       {
-        "name": "111",
+        "account_name": "主号",
         "cookie": "COOKIE_MASKED",
-        "user_agent": "UA_MASKED",
-        "setting": "MASKED"
+        "user_agent": "smzdm_android_V11.1.95 rv:1195 (Android13;zh)smzdmapp",
+        "modules": [
+          "checkin"
+        ]
       }
     ]
   },

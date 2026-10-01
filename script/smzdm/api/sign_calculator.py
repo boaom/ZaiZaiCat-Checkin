@@ -4,7 +4,8 @@ from typing import Dict, Any, Union
 from urllib.parse import urlparse, parse_qs
 
 # 公共变量：用于 sign 计算的固定 key
-SECRET_KEY = "zok5JtAq3$QixaA%mncn*jGWlEpSL3E1"
+# 该 key 与 smzdm App 客户端内置的一致，改动会导致所有接口返回 check Sign Fail
+SECRET_KEY = "apr1$AwP!wRRT$gJ/q.X24poeBInlUJC"
 
 
 def calculate_sign(data: Dict[str, Any]) -> str:

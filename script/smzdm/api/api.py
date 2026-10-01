@@ -6,6 +6,7 @@
 """
 
 import base64
+import re
 import requests
 from typing import Dict, Optional, Any, List
 import logging
@@ -27,6 +28,11 @@ class SmzdmAPI:
     BASE_URL = "https://zhiyou.m.smzdm.com"
     TEST_URL = "https://test.m.smzdm.com"
     USER_API_URL = "https://user-api.smzdm.com"
+    DEFAULT_USER_AGENT = "smzdm_android_V11.1.95 rv:1195 (Android13;zh)smzdmapp"
+    CHECKIN_WEB_URL = "https://zhiyou.smzdm.com"
+    WEB_USER_AGENT = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                      "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
+                      "Mobile/15E148 Safari/604.1")
     TEST_API_URL = "https://test-api.smzdm.com"
     ARTICLE_CDN_URL = "https://article-cdn.smzdm.com"
     DINGYUE_API_URL = "https://dingyue-api.smzdm.com"
@@ -805,55 +811,73 @@ class SmzdmAPI:
         """
         每日签到
 
+        说明：App 端 /checkin 接口要求客户端每次现算的 sk 参数（一次性，
+        无法离线复现，复用旧值会返回 check Sign Fail），因此这里改用
+        Web 端签到接口，仅依赖 Cookie。
+
         Returns:
-            签到结果数据，失败返回None
+            签到结果数据（字段已归一化为 App 端命名），失败返回 None
         """
-        url = f"{self.USER_API_URL}/checkin"
+        url = f"{self.CHECKIN_WEB_URL}/user/checkin/jsonp_checkin"
 
-        # 构建请求参数
-        current_time = int(time.time() * 1000)
-        params = {
-            'basic_v': '0',
-            'f': 'iphone',
-            'time': str(current_time),
-            'v': '11.1.35',
-            'weixin': '1',
-            'zhuanzai_ab': 'b'
-        }
-
-        # 计算签名
-        sign = calculate_sign_from_params(params)
-        params['sign'] = sign
-
-        # 设置特殊请求头
-        headers = self.session.headers.copy()
-        headers.update({
-            'User-Agent': self.user_agent,
+        headers = {
+            'User-Agent': self.WEB_USER_AGENT,
+            'Referer': f'{self.CHECKIN_WEB_URL}/user/',
+            'Origin': self.CHECKIN_WEB_URL,
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest',
             'Content-Type': 'application/x-www-form-urlencoded',
-            'request_key': str(int(time.time() * 1000000000))[:18],
-            'Content-Encoding': 'gzip',
-            'Accept-Language': 'zh-Hans-CN;q=1'
-        })
+        }
 
         logger.info(f"📌 正在执行每日签到...")
 
         try:
-            response = self.session.post(url, data=params, headers=headers)
+            response = self.session.post(url, data={}, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
 
-            if data.get('error_code') == '0' or data.get('error_code') == 0:
-                checkin_data = data.get('data', {})
-                logger.info(f"✅ 每日签到成功!")
-                return checkin_data
-            else:
-                error_msg = data.get('error_msg', '未知错误')
-                logger.error(f"❌ 每日签到失败: {error_msg}")
+            if data.get('error_code') not in (0, '0'):
+                logger.error(f"❌ 每日签到失败: {data.get('error_msg', '未知错误')}")
                 return None
+
+            raw = data.get('data') or {}
+            add_point = self._to_int(raw.get('add_point'))
+            checkin_data = {
+                # 归一化为 App 端字段，保持上层展示逻辑不变
+                'cpadd': add_point,
+                'daily_num': self._to_int(raw.get('checkin_num')),
+                'cpoints': self._to_int(raw.get('point')),
+                'cexperience': self._to_int(raw.get('exp')),
+                'cgold': self._to_int(raw.get('gold')),
+                'cprestige': self._to_int(raw.get('prestige')),
+                'rank': self._to_int(raw.get('rank')),
+                'slogan': self._strip_html(raw.get('slogan', '')),
+                # Web 端特有字段
+                'cards': self._to_int(raw.get('cards')),
+                'continue_checkin_days': self._to_int(raw.get('continue_checkin_days')),
+            }
+
+            if add_point > 0:
+                logger.info(f"✅ 每日签到成功! +{add_point} 积分")
+            else:
+                logger.info(f"✅ 今日已签到（本次 +0 积分）")
+            return checkin_data
         except Exception as e:
             logger.error(f"❌ 每日签到请求失败: {str(e)}")
             return None
 
+    @staticmethod
+    def _to_int(value) -> int:
+        """把接口返回的字符串数字安全转为 int"""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
+    @staticmethod
+    def _strip_html(text: str) -> str:
+        """去掉接口返回文案里的 HTML 标签"""
+        return re.sub(r'<[^>]+>', '', str(text or '')).strip()
 
     def close(self):
         """关闭会话"""

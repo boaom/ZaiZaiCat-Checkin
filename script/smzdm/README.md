@@ -24,28 +24,52 @@ pip install requests
 
 ## ⚙️ 配置说明
 
-在项目根目录的 `config/token.json` 中配置您的账号信息：
-自行抓包获取相关内容,在headers中找到相关字段(搜索)
+在项目根目录的 `config/token.json` 的 `smzdm` 节点下配置账号：
+
 ```json
 {
   "smzdm": {
     "accounts": [
       {
-        "account_name": "账号1",
-        "cookie": "你的Cookie信息",
-        "user_agent": "",
-        "setting": ""
+        "account_name": "主号",
+        "cookie": "抓包得到的完整 Cookie",
+        "user_agent": "smzdm_android_V11.1.95 rv:1195 (23013RK75C;Android13;zh)smzdmapp",
+        "modules": ["checkin"]
       }
     ]
   }
 }
 ```
 
-### 配置文件位置
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `account_name` | 否 | 账号备注名，也兼容旧字段 `name` |
+| `cookie` | 是 | 抓包得到的完整 Cookie 串（App 或网页版均可） |
+| `user_agent` | 否 | 不填会用内置的 App UA |
+| `modules` | 否 | 要跑的模块，可选 `checkin` / `zhongce` / `interactive`，默认全跑 |
 
-- **默认路径**: `ZaiZaiCat-Checkin/config/token.json`
-- **结构说明**: 配置文件采用统一管理，支持多个平台配置
-- **smzdm 节点**: 什么值得买相关配置都在此节点下
+### 模块说明
+
+- `checkin`：每日签到，走 Web 端接口 `zhiyou.smzdm.com/user/checkin/jsonp_checkin`，**只需要 Cookie**
+- `zhongce`：众测任务，走 App 端接口，需要请求签名
+- `interactive`：互动任务（浏览/收藏/点赞/关注），需要请求签名
+
+### 关于每日签到的接口选择
+
+App 端的 `/checkin` 接口除了 `token` 外还要求一个 `sk` 参数。该参数由客户端每次请求现算，
+**无法离线复现**——把抓到的旧 `sk` 配上新时间戳重放，服务端会直接返回 `check Sign Fail`。
+因此脚本的签到改用 Web 端接口，只依赖 Cookie，长期更稳。
+
+### 关于请求签名
+
+App 端接口（`user-api.smzdm.com`）的 `sign` 是 MD5 签名：
+
+```
+sign = MD5( 参数按 key 字母序拼接成 k=v&k=v... + "&key=" + SECRET_KEY ).upper()
+```
+
+`SECRET_KEY` 定义在 `api/sign_calculator.py`，必须与客户端一致，否则所有 App 端接口都会返回
+`check Sign Fail`。空值参数（如 `captcha=`）不参与签名。
 
 ### Cookie 获取方法
 

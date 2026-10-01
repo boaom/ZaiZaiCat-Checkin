@@ -1,6 +1,6 @@
 """
 new Env('什么值得买');
-cron: 1 1 1 1 1
+cron: 15 8 * * *
 """
 
 """
@@ -624,10 +624,15 @@ class SmzdmTaskManager:
         Returns:
             账号执行结果统计
         """
-        account_name = account.get('name', '未命名账号')
+        account_name = account.get('account_name') or account.get('name') or '未命名账号'
         cookie = account.get('cookie', '')
         user_agent = account.get('user_agent', '')
         setting = account.get('setting', '')
+
+        # 模块开关：默认全跑；可配置 ["checkin"] 只签到
+        modules = account.get('modules') or ['checkin', 'zhongce', 'interactive']
+        if isinstance(modules, str):
+            modules = [m.strip() for m in modules.split(',') if m.strip()]
 
         # 初始化结果
         result = {
@@ -639,10 +644,14 @@ class SmzdmTaskManager:
             'interactive': {'success': 0, 'fail': 0, 'skip': 0}
         }
 
-        if not cookie or not user_agent:
-            logger.error(f"❌ 账号 [{account_name}] 配置不完整，跳过\n")
+        if not cookie:
+            logger.error(f"❌ 账号 [{account_name}] 配置不完整（缺少 cookie），跳过\n")
             result['error'] = '配置不完整'
             return result
+
+        if not user_agent:
+            user_agent = SmzdmAPI.DEFAULT_USER_AGENT
+            logger.warning(f"⚠️  账号 [{account_name}] 未配置 user_agent，使用默认值")
 
         logger.info(f"{'='*60}")
         logger.info(f"👤 账号: {account_name}")
@@ -656,34 +665,45 @@ class SmzdmTaskManager:
             service = SmzdmService(api)
 
             # 0. 每日签到
-            logger.info(f"\n{'='*60}")
-            logger.info(f"📅 开始执行每日签到")
-            logger.info(f"{'='*60}")
+            if 'checkin' in modules:
+                logger.info(f"\n{'='*60}")
+                logger.info(f"📅 开始执行每日签到")
+                logger.info(f"{'='*60}")
 
-            checkin_data = api.daily_checkin()
-            if checkin_data:
-                service.print_checkin_info(checkin_data)
-                result['checkin']['success'] = True
-                # 提取连续签到天数
-                if checkin_data.get('data'):
-                    result['checkin']['continuous_days'] = checkin_data['data'].get('continue_checkin_days', 0)
+                checkin_data = api.daily_checkin()
+                if checkin_data:
+                    service.print_checkin_info(checkin_data)
+                    result['checkin']['success'] = True
+                    # 提取连续签到天数
+                    result['checkin']['continuous_days'] = checkin_data.get('continue_checkin_days', 0)
+                    result['checkin']['add_point'] = checkin_data.get('cpadd', 0)
+                else:
+                    logger.warning("⚠️  每日签到失败或已签到")
+
+                # 等待一下再处理下一个模块
+                time.sleep(2)
             else:
-                logger.warning("⚠️  每日签到失败或已签到")
-
-            # 等待一下再处理下一个模块
-            time.sleep(2)
+                logger.info("⏭️  已跳过每日签到（modules 未启用）")
 
             # 1. 处理众测任务
-            zhongce_stats = self.process_zhongce_tasks(api, account_name)
-            result['zhongce'] = zhongce_stats
+            zhongce_stats = {'success': 0, 'fail': 0, 'skip': 0}
+            if 'zhongce' in modules:
+                zhongce_stats = self.process_zhongce_tasks(api, account_name)
+                result['zhongce'] = zhongce_stats
 
-            # 等待一下再处理下一个模块
-            delay_time = random.uniform(10, 15)
-            logger.info(f"[{account_name}] 更换任务模块 {delay_time}，等待 {delay_time:.2f} 秒...")
+                # 等待一下再处理下一个模块
+                delay_time = random.uniform(10, 15)
+                logger.info(f"[{account_name}] 更换任务模块 {delay_time}，等待 {delay_time:.2f} 秒...")
+            else:
+                logger.info("⏭️  已跳过众测任务（modules 未启用）")
 
             # 2. 处理互动任务
-            interactive_stats = self.process_interactive_tasks(api, account_name)
-            result['interactive'] = interactive_stats
+            interactive_stats = {'success': 0, 'fail': 0, 'skip': 0}
+            if 'interactive' in modules:
+                interactive_stats = self.process_interactive_tasks(api, account_name)
+                result['interactive'] = interactive_stats
+            else:
+                logger.info("⏭️  已跳过互动任务（modules 未启用）")
 
             # 输出总统计
             logger.info(f"\n{'='*60}")
@@ -746,7 +766,7 @@ class SmzdmTaskManager:
                 logger.error(f"❌ 处理第 {idx} 个账号时发生错误: {str(e)}\n", exc_info=True)
                 # 记录失败的账号
                 self.account_results.append({
-                    'account_name': account.get('name', f'账号{idx}'),
+                    'account_name': account.get('account_name') or account.get('name') or f'账号{idx}',
                     'success': False,
                     'error': str(e)
                 })
