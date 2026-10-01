@@ -33,6 +33,10 @@
 | 🚀 Agent Router  | `script/agentrouter/main.py` | ✅ 可用 | 支持 OAuth 登录即签到、余额查询 |
 | 🏃 RQ 跑步商      | `script/rq/main.py` | ✅ 可用 | 支持每日签到（仅需 PHPSESSID） |
 | 🔓 吾爱破解      | `script/52pojie/main.py` | ✅ 可用 | 支持每日签到，内置网宿 WAF 挑战求解（依赖 curl_cffi） |
+| 🎣 大潮 App      | `script/dachao/main.py` | ✅ 可用 | 账号密码登录流程，支持签到与「阅读有礼」抽奖 |
+| 🥬 叮咚买菜      | `script/dingdong/main.py` | ✅ 可用 | 签到 + 积分中心任务 + 农场领饲料喂鱼，支持多账号 |
+| 🎁 福利吧        | `script/fuliba/main.py` | ✅ 可用 | Discuz 论坛每日签到，自动获取 formhash |
+| 📺 追剧更新提醒    | `script/tmdb/main.py` | ✅ 可用 | 读 TMDB 在看列表，集数推进时推 Telegram 卡片 |
 
 ### 状态说明
 
@@ -66,7 +70,31 @@ WorkBuddy（CodeBuddy）每日签到脚本，接口实现参考 [cockpit-tools](
 
 支持每日签到、连签奖励、多账号管理、令牌自动续期（access_token 60 天 / refresh_token 90 天，自动轮换续期）。详见 [script/workbuddy/README.md](script/workbuddy/README.md)。
 
+## 📝 追剧更新提醒 功能说明
+
+剧源来自 TMDB 账号的「在看列表」，由青龙定时触发，某部剧集数往前推进了就把更新卡片推到 Telegram 群：
+
+- `script/tmdb/main.py`：CLI 与编排（青龙入口）
+- `script/tmdb/tracker.py`：更新判定，纯逻辑不碰网络和文件
+- `script/tmdb/state.py`：进度持久化，代际备份 + checksum 自校验 + 旧格式迁移
+- `script/tmdb/notify.py`：推送适配；`message.py`：推送文案；`api.py`：TMDB 接口封装
+
+首次执行（进度文件为空）会给每部剧各推一张「已纳入追踪」卡片，之后只推有更新的剧，一部剧一张。
+详见 [script/tmdb/README.md](script/tmdb/README.md)。
+
 ## 📝 更新日志
+
+### 2026-10-01
+- 📺 **新增追剧更新提醒模块**（`script/tmdb/`）:
+  - 📡 剧源直接读 TMDB 账号的「在看列表」，加剧/删剧不用改脚本
+  - 🚀 首次执行给每部剧各推一张「已纳入追踪」卡片，之后只推集数往前推进的剧
+  - 🕘 漏跑可补：进度存本地，脚本停几天再跑会把期间新出的集数一次性补报
+  - 🛡️ 进度改为代际备份（`config/tmdb/state.json` + `.1` + `.2`）并带 checksum 自校验，主文件被写坏自动退回上一代
+  - 🧩 拆成 `main` / `tracker` / `state` / `notify` / `message` / `api` 六个模块，判定逻辑抽成纯函数并补齐单测
+  - 🚦 撞上 Telegram 429 时按 `retry_after` 自动等待重试
+- ✨ **新增叮咚买菜、福利吧签到模块**
+- 📝 状态表补齐此前遗漏的大潮 App、叮咚买菜、福利吧、追剧更新提醒
+- 🛠 `notification.py` 的 `send()` / `send_notification()` 支持按次覆盖 Telegram 凭据并返回 `bool`，未配置任何渠道时不再静默失败
 
 ### 2026-09-12
 - ✨ 新增 Trae CN、Agent Router 自动签到模块，详见各脚本子目录 README
