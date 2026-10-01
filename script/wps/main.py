@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 new Env('WPS签到抽奖');
-cron: 1 1 1 1 1
+cron: 45 8 * * *
 """
 
 """
