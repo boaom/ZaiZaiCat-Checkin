@@ -3,19 +3,11 @@
     "accounts": [
       {
         "account_name": "大号",
-        "cookies": "COOKIE_MASKED",
-        "user_id": "MASKED",
-        "user_agent": "UA_MASKED",
-        "channel": "weixin",
-        "device_id": "DEVICE_MASKED"
-      },
-      {
-        "account_name": "小号",
-        "cookies": "COOKIE_MASKED",
-        "user_id": "MASKED",
-        "user_agent": "UA_MASKED",
-        "channel": "weixin",
-        "device_id": "DEVICE_MASKED"
+        "sign": "分享链接里的 sign 值",
+        "user_id": "",
+        "user_agent": "",
+        "channel": "appqiandao",
+        "device_id": ""
       }
     ]
   },
