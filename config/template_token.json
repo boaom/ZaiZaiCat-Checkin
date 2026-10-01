@@ -249,5 +249,23 @@
       "mission": true,
       "lucky_draw": false
     }
+  },
+  "tmdb": {
+    "access_token": "TMDB v4 读访问令牌",
+    "api_key": "TMDB v3 API 密钥",
+    "account_id": "",
+    "options": {
+      "language": "zh-CN",
+      "list_type": "watchlist",
+      "max_workers": 5,
+      "notify_when_empty": false,
+      "upcoming_days": 0
+    },
+    "notify": {
+      "bot_token": "",
+      "chat_id": "",
+      "api_host": "",
+      "proxy": ""
+    }
   }
 }
