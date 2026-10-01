@@ -148,6 +148,11 @@ class StateStore:
             if not source.exists():
                 continue
             try:
+                if source.stat().st_size == 0:
+                    # 空文件没有任何恢复价值，直接丢掉，
+                    # 免得它把备份位里上一代的好数据挤走
+                    source.unlink()
+                    continue
                 os.replace(source, target)
             except OSError as e:
                 logger.warning(f"⚠️ 轮转备份 {source.name} → {target.name} 失败: {e}")

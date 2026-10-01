@@ -99,6 +99,17 @@ class StateStoreTest(unittest.TestCase):
         self.assertEqual(self._shows(self.store.paths[1]), {'1': {'episode': 2}})
         self.assertEqual(self._shows(self.store.paths[2]), {'1': {'episode': 1}})
 
+    def test_repeated_truncation_keeps_a_usable_generation(self):
+        self.store.save({'1': {'episode': 1}})
+        self.store.save({'1': {'episode': 2}})
+        self._write_raw(self.state_path, '')
+        self.store.save({'1': {'episode': 3}})
+        self._write_raw(self.state_path, '')
+        self.store.save({'1': {'episode': 4}})
+
+        self.assertEqual(self.store.load()['shows'], {'1': {'episode': 4}})
+        self.assertTrue(any(path.exists() for path in self.store.paths[1:]))
+
     def test_save_creates_parent_directory(self):
         self.assertFalse(self.state_path.parent.exists())
         self.store.save({'1': {'episode': 1}})
@@ -116,6 +127,19 @@ class StateStoreTest(unittest.TestCase):
         for path in self.store.paths:
             self.assertFalse(path.exists())
         self.assertEqual(self.store.load()['shows'], {})
+
+    def test_empty_state_file_is_dropped_instead_of_rotated(self):
+        self.store.save({'1': {'episode': 1}})
+        self.store.save({'1': {'episode': 2}})
+        self._write_raw(self.state_path, '')  # 模拟主文件被清空
+
+        self.store.save({'1': {'episode': 3}})
+
+        self.assertEqual(self._shows(self.store.paths[0]), {'1': {'episode': 3}})
+        # 空文件被丢掉而不是顶进 .1，上一代好数据留在 .2
+        self.assertFalse(self.store.paths[1].exists())
+        self.assertEqual(self._shows(self.store.paths[2]), {'1': {'episode': 1}})
+        self.assertEqual(self.store.load()['shows'], {'1': {'episode': 3}})
 
     # ---------------- 迁移 ----------------
 
