@@ -12,7 +12,10 @@ from typing import Dict, Optional, Any, List
 import logging
 import time
 from io import BytesIO
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:  # 仅爆料图片上传功能需要 Pillow，缺失时不影响签到
+    Image = None
 from urllib.parse import unquote
 from typing import Optional, Dict, Any
 from .sign_calculator import calculate_sign_from_params,calculate_sign
@@ -1676,6 +1679,10 @@ class SmzdmAPI:
             "Referer": "https://detail.tmall.com/",
             "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
         }
+
+        if Image is None:
+            logger.error("❌ 未安装 Pillow，无法处理爆料图片（pip install Pillow）")
+            return None, ""
 
         try:
             response = requests.get(image_url, headers=headers, timeout=30)
