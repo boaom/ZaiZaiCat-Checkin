@@ -37,6 +37,8 @@ Date: 2026-10-01
 import argparse
 import json
 import logging
+import os
+import shutil
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
@@ -188,25 +190,61 @@ class EpisodeTracker:
     # ---------------- 进度 ----------------
 
     def load_state(self) -> None:
-        if not self.state_path.exists():
+        if not self.state_path.exists() and not self.state_backup_path.exists():
             logger.info("进度文件不存在，本次将只初始化不推送")
             self.state = {'shows': {}}
             return
-        try:
-            with open(self.state_path, 'r', encoding='utf-8') as f:
-                self.state = json.load(f)
-            self.state.setdefault('shows', {})
+
+        for path in (self.state_path, self.state_backup_path):
+            if not path.exists():
+                continue
+            try:
+                state = self._read_state_file(path)
+            except (json.JSONDecodeError, OSError, ValueError) as e:
+                logger.warning(f"⚠️ 进度文件读取失败（{path.name}）: {e}")
+                continue
+            self.state = state
+            if path != self.state_path:
+                logger.warning(f"⚠️ 主进度文件不可用，已从备份 {path.name} 恢复")
             logger.info(f"已加载 {len(self.state['shows'])} 部剧的追踪进度")
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"⚠️ 进度文件读取失败（按空进度处理）: {e}")
-            self.state = {'shows': {}}
+            return
+
+        logger.warning("⚠️ 进度文件及其备份均不可用，按空进度处理")
+        self.state = {'shows': {}}
+
+    @property
+    def state_backup_path(self) -> Path:
+        return self.state_path.with_name(self.state_path.name + '.bak')
+
+    @staticmethod
+    def _read_state_file(path: Path) -> Dict[str, Any]:
+        with open(path, 'r', encoding='utf-8') as f:
+            state = json.load(f)
+        if not isinstance(state, dict) or not isinstance(state.get('shows'), dict):
+            raise ValueError("进度文件结构不正确")
+        state.setdefault('shows', {})
+        return state
 
     def save_state(self) -> None:
         self.state['updated_at'] = datetime.now().isoformat(timespec='seconds')
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.state_path, 'w', encoding='utf-8') as f:
-            json.dump(self.state, f, ensure_ascii=False, indent=2)
-            f.write('\n')
+        # 先写临时文件再原子替换：中途被杀掉也不会把进度文件截断成空文件
+        tmp_path = self.state_path.with_name(f"{self.state_path.name}.{os.getpid()}.tmp")
+        try:
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(self.state, f, ensure_ascii=False, indent=2)
+                f.write('\n')
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, self.state_path)
+            try:
+                # 主文件落盘后再镜像一份，备份始终和主文件同版本
+                shutil.copyfile(self.state_path, self.state_backup_path)
+            except OSError as e:
+                logger.warning(f"⚠️ 备份进度文件失败: {e}")
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
         logger.info(f"进度已写入 {self.state_path}")
 
     # ---------------- 剧源 ----------------
@@ -347,8 +385,10 @@ class EpisodeTracker:
     # ---------------- 主流程 ----------------
 
     def run(self, dry_run: bool = False, reset: bool = False) -> int:
-        if reset and self.state_path.exists():
-            self.state_path.unlink()
+        if reset:
+            for path in (self.state_path, self.state_backup_path):
+                if path.exists():
+                    path.unlink()
             logger.info("已清空进度文件")
             self.state = {'shows': {}}
 
