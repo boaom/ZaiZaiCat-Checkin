@@ -211,5 +211,8 @@ config/token.json
 config/notification.json
 config/*.secret.json
 
+# 运行时进度（含代际备份）
+config/tmdb/
+
 # IDE internal docs
 .trae/

@@ -317,7 +317,9 @@ class NotificationManager:
 
     def send(self, title: str, content: str, level: Optional[str] = None,
              sound: Optional[str] = None, group: Optional[str] = None,
-             url: Optional[str] = None, timeout: int = 10):
+             url: Optional[str] = None, timeout: int = 10,
+             telegram_bot_token: Optional[str] = None,
+             telegram_chat_id: Optional[str] = None) -> bool:
         """
         统一发送所有已启用的通知
 
@@ -329,33 +331,48 @@ class NotificationManager:
             group (Optional[str]): 推送分组 (Bark专用)
             url (Optional[str]): 跳转链接 (Bark专用)
             timeout (int): 请求超时时间
+            telegram_bot_token (Optional[str]): 本次调用的 Telegram bot token 覆盖值
+            telegram_chat_id (Optional[str]): 本次调用的 Telegram chat id 覆盖值
+
+        Returns:
+            bool: 是否至少有一个渠道发送成功
         """
+        results = []
+
         if self.is_bark_enabled():
-            self.send_bark_notification(title, content, timeout, level, sound, group, url)
+            results.append(bool(self.send_bark_notification(title, content, timeout, level, sound, group, url)))
         if self.is_server_enabled():
-            self.send_server_notification(title, content, timeout)
+            results.append(bool(self.send_server_notification(title, content, timeout)))
         if self.is_coolpush_enabled():
-            self.send_coolpush_notification(title, content, timeout)
+            results.append(bool(self.send_coolpush_notification(title, content, timeout)))
         if self.is_qmsg_enabled():
-            self.send_qmsg_notification(content, timeout)
-        if self.is_telegram_enabled():
-            self.send_telegram_notification(title, content, timeout)
+            results.append(bool(self.send_qmsg_notification(content, timeout)))
+        if self.is_telegram_enabled() or (telegram_bot_token and telegram_chat_id):
+            results.append(bool(self.send_telegram_notification(
+                title, content, timeout,
+                bot_token=telegram_bot_token, chat_id=telegram_chat_id,
+            )))
         if self.is_feishu_enabled():
-            self.send_feishu_notification(title, content, timeout)
+            results.append(bool(self.send_feishu_notification(title, content, timeout)))
         if self.is_dingtalk_enabled():
-            self.send_dingtalk_notification(title, content, timeout)
+            results.append(bool(self.send_dingtalk_notification(title, content, timeout)))
         if self.is_qywx_robot_enabled():
-            self.send_qywx_robot_notification(content, timeout)
+            results.append(bool(self.send_qywx_robot_notification(content, timeout)))
         if self.is_qywx_app_enabled():
-            self.send_qywx_app_notification(title, content, timeout)
+            results.append(bool(self.send_qywx_app_notification(title, content, timeout)))
         if self.is_pushplus_enabled():
-            self.send_pushplus_notification(title, content, timeout)
+            results.append(bool(self.send_pushplus_notification(title, content, timeout)))
         if self.is_pushdeer_enabled():
-            self.send_pushdeer_notification(title, content, timeout)
+            results.append(bool(self.send_pushdeer_notification(title, content, timeout)))
         if self.is_gotify_enabled():
-            self.send_gotify_notification(title, content, timeout)
+            results.append(bool(self.send_gotify_notification(title, content, timeout)))
         if self.is_ntfy_enabled():
-            self.send_ntfy_notification(title, content, timeout)
+            results.append(bool(self.send_ntfy_notification(title, content, timeout)))
+
+        if not results:
+            self.logger.warning("⚠️ 未配置任何推送渠道，本次通知未发送")
+            return False
+        return any(results)
 
     def send_server_notification(self, title: str, content: str, timeout: int = 10) -> bool:
         """发送Server酱推送"""
@@ -440,14 +457,22 @@ class NotificationManager:
             self.logger.error(f"❌ Qmsg酱推送异常: {e}")
             return False
 
-    def send_telegram_notification(self, title: str, content: str, timeout: int = 10) -> bool:
-        """发送Telegram推送"""
-        if not self.is_telegram_enabled():
+    def send_telegram_notification(self, title: str, content: str, timeout: int = 10,
+                                   bot_token: Optional[str] = None,
+                                   chat_id: Optional[str] = None) -> bool:
+        """
+        发送Telegram推送
+
+        Args:
+            bot_token (Optional[str]): 覆盖全局配置的 bot token
+            chat_id (Optional[str]): 覆盖全局配置的 chat id
+        """
+        bot_token = bot_token or self.telegram_config.get('bot_token')
+        user_id = chat_id or self.telegram_config.get('user_id')
+        if not (bot_token and user_id):
             self.logger.warning("Telegram推送未启用")
             return False
 
-        bot_token = self.telegram_config['bot_token']
-        user_id = self.telegram_config['user_id']
         api_host = self.telegram_config.get('api_host')
         proxy = self.telegram_config.get('proxy')
 
@@ -819,7 +844,9 @@ notification_manager = NotificationManager()
 
 def send_notification(title: str, content: str, level: Optional[str] = None,
                      sound: Optional[str] = None, group: Optional[str] = None,
-                     url: Optional[str] = None):
+                     url: Optional[str] = None,
+                     telegram_bot_token: Optional[str] = None,
+                     telegram_chat_id: Optional[str] = None) -> bool:
     """
     便捷函数：发送通知
 
@@ -830,8 +857,17 @@ def send_notification(title: str, content: str, level: Optional[str] = None,
         sound (Optional[str]): 推送声音 (Bark专用)
         group (Optional[str]): 推送分组 (Bark专用)
         url (Optional[str]): 跳转链接 (Bark专用)
+        telegram_bot_token (Optional[str]): 本次调用的 Telegram bot token 覆盖值
+        telegram_chat_id (Optional[str]): 本次调用的 Telegram chat id 覆盖值
+
+    Returns:
+        bool: 是否至少有一个渠道发送成功
     """
-    notification_manager.send(title, content, level=level, sound=sound, group=group, url=url)
+    return notification_manager.send(
+        title, content, level=level, sound=sound, group=group, url=url,
+        telegram_bot_token=telegram_bot_token,
+        telegram_chat_id=telegram_chat_id,
+    )
 
 
 if __name__ == "__main__":

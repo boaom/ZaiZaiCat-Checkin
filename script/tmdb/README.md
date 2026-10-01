@@ -10,7 +10,20 @@
 - 🕘 **漏跑可补**：进度存在本地文件，脚本停几天再跑会把期间新出的集数一次性补报
 - ⚡ **并发拉取**：64 部剧约 7 秒跑完
 - 🧪 **可预演**：`--dry-run` 只打印不推送、不写进度，方便验证判定逻辑
+- 🛡️ **进度不丢**：代际备份 + checksum 自校验，主文件被写坏自动退回上一代
 - 🔁 接口带 429 / 5xx 重试，单部剧拉取失败不影响其他剧
+
+## 🗂 模块划分
+
+| 文件 | 职责 |
+|---|---|
+| `main.py` | CLI 与编排（青龙入口，路径不要改） |
+| `tracker.py` | 更新判定，纯逻辑不碰网络和文件 |
+| `state.py` | 进度持久化（代际备份 + 自校验 + 旧格式迁移） |
+| `notify.py` | 推送适配 |
+| `message.py` | 推送文案 |
+| `api.py` | TMDB 接口封装 |
+| `tests/` | 单测 |
 
 ## 📦 依赖
 
@@ -57,6 +70,10 @@ pip install requests
 | `notify.api_host` | 否 | 自建 Bot API 反代域名，留空走 `api.telegram.org` |
 | `notify.proxy` | 否 | 如 `socks5h://127.0.0.1:1080` |
 
+> `notify` 配了就直连 Telegram，消息原样发送。
+> 没配则回退到项目统一推送层 `notification.py`，走青龙环境变量或
+> `config/notification.json` 里已启用的渠道；两边都没有可用渠道时脚本会报错并返回非 0。
+
 ### options 说明
 
 | 开关 | 默认 | 说明 |
@@ -100,10 +117,13 @@ python script/tmdb/main.py --reset      # 清空进度，下次跑重新初始�
     进度变了且已播出  →  推送卡片，更新进度
 ```
 
-进度文件：`config/tmdb_state.json`
+进度文件：`config/tmdb/state.json`
 
 ```json
 {
+  "version": 1,
+  "updated_at": "2026-10-01T20:00:00",
+  "checksum": "shows 规范化 JSON 的 sha256",
   "shows": {
     "283319": {
       "season": 1,
@@ -118,9 +138,17 @@ python script/tmdb/main.py --reset      # 清空进度，下次跑重新初始�
 
 > 想重新开始追踪（比如清空后让所有剧重新初始化），删掉这个文件或跑 `--reset` 即可。
 
-进度文件采用「先写临时文件再原子替换」的方式落盘，落盘后再镜像一份
-`config/tmdb_state.json.bak`。所以脚本中途被杀掉、或进度文件被写坏，下次运行会自动
-从备份恢复，不会出现进度归零后把已在追的剧重新初始化一遍的情况。
+### 进度文件怎么保证不丢
+
+- **原子写入**：先写临时文件、`fsync` 后再 `os.replace` 顶上，中途被杀掉不会留下半截文件。
+- **代际备份**：每次保存前把 `state.json` → `state.json.1` → `state.json.2` 轮转，
+  始终保留最近三代。
+- **自校验**：每份文件都带 `checksum`（`shows` 规范化 JSON 的 sha256）。
+  加载时从新到旧取第一份校验通过的，所以主文件被清空、截断、或内容被改坏都能自动恢复。
+- **旧格式迁移**：首次运行发现老位置的 `config/tmdb_state.json` 会自动转换到新位置，
+  旧文件原地保留不删。
+
+三代全坏时会退化成空进度重新初始化（只会重新记录、不会误推）。
 
 ## 📨 推送文案
 
@@ -144,6 +172,14 @@ python script/tmdb/main.py --reset      # 清空进度，下次跑重新初始�
 | 在看列表 | `GET /account/{account_id}/watchlist/tv?page=N&sort_by=created_at.desc` |
 | 自定义列表 | `GET /list/{list_id}` |
 | 剧集详情 | `GET /tv/{id}?append_to_response=next_episode_to_air,last_episode_to_air` |
+
+## 🧪 测试
+
+零额外依赖，用标准库 `unittest`：
+
+```bash
+python -m unittest discover -s script/tmdb/tests -t script/tmdb/tests -v
+```
 
 ## ⚠️ 已知限制
 
