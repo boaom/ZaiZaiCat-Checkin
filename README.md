@@ -37,6 +37,7 @@
 | 🥬 叮咚买菜      | `script/dingdong/main.py` | ✅ 可用 | 签到 + 积分中心任务 + 农场领饲料喂鱼，支持多账号 |
 | 🎁 福利吧        | `script/fuliba/main.py` | ✅ 可用 | Discuz 论坛每日签到，自动获取 formhash |
 | 📺 追剧更新提醒    | `script/tmdb/main.py` | ✅ 可用 | 读 TMDB 在看列表，集数推进时推 Telegram 卡片 |
+| 🐱 NodeSeek     | `script/nodeseek/main.py` | ✅ 可用 | 每日签到领鸡腿，支持多账号与代理 |
 
 ### 状态说明
 
@@ -83,6 +84,14 @@ WorkBuddy（CodeBuddy）每日签到脚本，接口实现参考 [cockpit-tools](
 详见 [script/tmdb/README.md](script/tmdb/README.md)。
 
 ## 📝 更新日志
+
+### 2026-10-03
+- ✨ **新增 NodeSeek 签到模块**（`script/nodeseek/`）:
+  - 🐱 每日签到领鸡腿，接口 `POST /api/attendance?random=true`
+  - 👥 多账号管理，账号配置在 `config/token.json` 的 `nodeseek.accounts`
+  - 🛡️ 区分 Cookie 失效（401）、Cloudflare 拦截（403 / 非 JSON 响应）、重复签到与签到成功
+  - 🔁 已签到按成功处理，通知里用 🔁 前缀区分
+  - 🌐 支持按账号配置 `proxy`，应对 `cf_clearance` 与出口 IP 绑定的情况
 
 ### 2026-10-01
 - 📺 **新增追剧更新提醒模块**（`script/tmdb/`）:

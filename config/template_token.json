@@ -279,5 +279,15 @@
         "user_agent": "UA_MASKED"
       }
     ]
+  },
+  "nodeseek": {
+    "accounts": [
+      {
+        "account_name": "主号",
+        "cookies": "浏览器完整 Cookie 字符串（需含 session、pjwt，可能还需 cf_clearance）",
+        "user_agent": "可选，建议与抓包时的浏览器保持一致",
+        "proxy": "可选，HTTP(S) 代理，如 http://127.0.0.1:7890"
+      }
+    ]
   }
 }
