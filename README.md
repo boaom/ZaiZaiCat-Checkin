@@ -75,15 +75,24 @@ WorkBuddy（CodeBuddy）每日签到脚本，接口实现参考 [cockpit-tools](
 
 剧源来自 TMDB 账号的「在看列表」，由青龙定时触发，某部剧集数往前推进了就把更新卡片推到 Telegram 群：
 
-- `script/tmdb/main.py`：CLI 与编排（青龙入口）
-- `script/tmdb/tracker.py`：更新判定，纯逻辑不碰网络和文件
-- `script/tmdb/state.py`：进度持久化，代际备份 + checksum 自校验 + 旧格式迁移
-- `script/tmdb/notify.py`：推送适配；`message.py`：推送文案；`api.py`：TMDB 接口封装
+- `script/tmdb/main.py`：单文件实现，CLI 与编排（青龙入口）
+  - `Notifier`：推送适配，脚本自带 Telegram 凭据或回退到统一推送层 `notification.py`
+  - `EpisodeTracker`：读配置 → 拉列表 → 取详情 → 判定 → 写进度 → 推送
 
-首次执行（进度文件为空）会给每部剧各推一张「已纳入追踪」卡片，之后只推有更新的剧，一部剧一张。
+没配 TMDB 令牌时回退到脚本内 `TRACKED_SHOWS` 兜底剧单。
+首次执行（进度文件为空）会给每部剧各推一张「新关注提醒」卡片，之后只推有更新的剧，一部剧一张。
 详见 [script/tmdb/README.md](script/tmdb/README.md)。
 
 ## 📝 更新日志
+
+### 2026-10-11
+- 🔧 **追剧更新提醒模块改为单文件实现**（`script/tmdb/`）:
+  - 📦 6 个模块（`main` / `tracker` / `state` / `notify` / `message` / `api`）与单测合并回单个 `main.py`，逻辑集中、便于一次拷进青龙
+  - 🎬 首次跟踪推送文案改为「🎬 新关注提醒」，附当前最新一集；之后只推真正新播出的集
+  - 🔀 无令牌时回退到脚本内 `TRACKED_SHOWS` 兜底剧单（支持名称搜索或直接写 TMDB ID）
+  - 🔁 新增 `--list` / `--reset`，`--dry-run` 保留
+  - 📨 推送优先脚本自带 Telegram 凭据，未配置则回退到统一推送层 `notification.py`
+  - ⚙️ 进度文件改为 `config/tmdb/watch_state.json`，原子写入（临时文件 + `fsync` + `os.replace`）
 
 ### 2026-10-03
 - ✨ **新增 NodeSeek 签到模块**（`script/nodeseek/`）:

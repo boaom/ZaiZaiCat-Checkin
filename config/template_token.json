@@ -259,10 +259,7 @@
     "account_id": "",
     "options": {
       "language": "zh-CN",
-      "list_type": "watchlist",
-      "max_workers": 5,
-      "notify_when_empty": false,
-      "upcoming_days": 0
+      "notify_when_empty": false
     },
     "notify": {
       "bot_token": "",
