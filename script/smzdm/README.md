@@ -52,7 +52,7 @@ pip install requests
 
 ### 模块说明
 
-- `checkin`：每日签到，走 Web 端接口 `zhiyou.smzdm.com/user/checkin/jsonp_checkin`，**只需要 Cookie**
+- `checkin`：每日签到，优先走 App 端接口 `user-api.smzdm.com/checkin`（Cookie + MD5 签名，免 `sk`），失败时回退 Web 端 `zhiyou.smzdm.com/user/checkin/jsonp_checkin`
 - `zhongce`：众测任务，走 App 端接口，需要请求签名
 
 > 众测的「任务活动」接口（`zhiyou.m.smzdm.com/task/task/*`）会被风控下发腾讯验证码，
@@ -64,9 +64,15 @@ pip install requests
 
 ### 关于每日签到的接口选择
 
-App 端的 `/checkin` 接口除了 `token` 外还要求一个 `sk` 参数。该参数由客户端每次请求现算，
-**无法离线复现**——把抓到的旧 `sk` 配上新时间戳重放，服务端会直接返回 `check Sign Fail`。
-因此脚本的签到改用 Web 端接口，只依赖 Cookie，长期更稳。
+签到走 App 端 `/checkin`（`user-api.smzdm.com`），请求体只需
+`f` / `v` / `weixin` / `zhuanzai_ab` / `time` / `basic_v` / 空 `captcha` + `sign`。
+
+> 抓包中 App 会带一个 `sk` 参数，但**实测 App 端不带 `sk` 也能签到成功**
+> （服务端对已登录 Cookie 不强制校验 `sk`）。旧版本误以为必须 `sk`，转而用 Web 端
+> `jsonp_checkin`，结果 Web 端自 2026-10 起被风控（返回 `error_code != 0` /
+> 「验证码输入错误，请重新输入」）。现改回 App 端并保留 Web 端兜底。
+
+`sk` 是客户端一次性现算值、无法离线复现；但既然 App 端免 `sk` 可用，就不再需要它。
 
 ### 关于请求签名
 

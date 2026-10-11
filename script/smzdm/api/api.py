@@ -848,13 +848,84 @@ class SmzdmAPI:
         """
         每日签到
 
-        说明：App 端 /checkin 接口要求客户端每次现算的 sk 参数（一次性，
-        无法离线复现，复用旧值会返回 check Sign Fail），因此这里改用
-        Web 端签到接口，仅依赖 Cookie。
+        优先走 App 端 /checkin（user-api.smzdm.com），仅依赖 Cookie + MD5 签名；
+        App 端在无 sk / captcha 的情况下同样能签到成功（经抓包与实测确认），
+        因此不再因「sk 不可离线复现」而退回被风控的 Web 端。
+        App 端失败时回退到 Web 端 jsonp_checkin。
 
         Returns:
-            签到结果数据（字段已归一化为 App 端命名），失败返回 None
+            签到结果数据，失败返回 None
         """
+        data = self._daily_checkin_app()
+        if data is not None:
+            return data
+        logger.warning("  ⚠️ App 端签到失败，回退 Web 端接口")
+        return self._daily_checkin_web()
+
+    def _daily_checkin_app(self) -> Optional[Dict[str, Any]]:
+        """App 端 /checkin（免 sk，MD5 签名）"""
+        url = f"{self.USER_API_URL}/checkin"
+
+        params = {
+            'basic_v': '0',
+            'f': self.f,
+            'v': self.v,
+            'weixin': '1',
+            'zhuanzai_ab': 'b',
+            'time': str(int(time.time() * 1000)),
+        }
+        # 与抓包一致：captcha 传空串，且空值不参与签名
+        params['captcha'] = ''
+        params['sign'] = calculate_sign_from_params(
+            {k: v for k, v in params.items() if k != 'sign'})
+
+        # App 端 /checkin 抓包中不带 Origin/Referer，从 session 默认头里剔除
+        headers = self.session.headers.copy()
+        headers.pop('Origin', None)
+        headers.pop('Referer', None)
+        headers.update({
+            'User-Agent': self.user_agent,
+            'Cookie': self.cookie,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'request_key': str(int(time.time() * 1000000000))[:18],
+        })
+
+        logger.info("📌 正在执行每日签到（App 端）...")
+        try:
+            response = self.session.post(url, data=params, headers=headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+        except Exception as e:
+            logger.error(f"❌ 每日签到请求失败: {str(e)}")
+            return None
+
+        if data.get('error_code') not in (0, '0'):
+            logger.error(f"❌ App 端签到失败: {data.get('error_msg', '未知错误')}")
+            return None
+
+        raw = data.get('data') or {}
+        add_point = self._to_int(raw.get('cpadd'))
+        checkin_data = {
+            'cpadd': add_point,
+            'daily_num': self._to_int(raw.get('daily_num')),
+            'cpoints': self._to_int(raw.get('cpoints')),
+            'cexperience': self._to_int(raw.get('cexperience')),
+            'cgold': self._to_int(raw.get('cgold')),
+            'cprestige': self._to_int(raw.get('cprestige')),
+            'rank': self._to_int(raw.get('rank')),
+            'cards': self._to_int(raw.get('cards')),
+            'slogan': self._strip_html(raw.get('slogan', '')),
+            'lottery_type': raw.get('lottery_type', ''),
+            'pre_re_silver': self._to_int(raw.get('pre_re_silver')),
+        }
+        if add_point > 0:
+            logger.info(f"✅ 每日签到成功! +{add_point} 积分")
+        else:
+            logger.info("✅ 今日已签到（本次 +0 积分）")
+        return checkin_data
+
+    def _daily_checkin_web(self) -> Optional[Dict[str, Any]]:
+        """Web 端 jsonp_checkin（回退方案，仅依赖 Cookie）"""
         url = f"{self.CHECKIN_WEB_URL}/user/checkin/jsonp_checkin"
 
         headers = {
@@ -866,7 +937,7 @@ class SmzdmAPI:
             'Content-Type': 'application/x-www-form-urlencoded',
         }
 
-        logger.info(f"📌 正在执行每日签到...")
+        logger.info("📌 正在执行每日签到（Web 端回退）...")
 
         try:
             response = self.session.post(url, data={}, headers=headers, timeout=30)
